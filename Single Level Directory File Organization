@@ -1,0 +1,105 @@
+#include<stdio.h>
+#include<stdlib.h> 
+#include<string.h> 
+struct file
+{
+char Name[100];
+};
+struct dir
+{
+char Name;
+int count; struct file* F[100];
+};
+//single level directory struct dir D; struct file *temp;
+void main()
+{ 
+int ch,flag=0,in; char f[100];
+printf("Single Level File Orgainsation\n"); D.count=0; 
+while(1)
+{ printf("Main Menu\n1. Create File\n2. Delete File\n3. Display\n4. Search File\n5.Exit\n"); 
+printf("Enter your choice : "); scanf("%d",&ch); if(ch==1){ printf("Enter the File Name : "); 
+scanf("%s",f); 
+if(strchr(f,'.')==NULL)
+{
+printf("The File name should contain an extention!\n");
+continue;
+}
+flag=0; 
+for(int i=0;i<D.count;i++)
+{ 
+temp=D.F[i]; 
+if(!(strcmp(temp->Name,f)))
+{ 
+printf("%s already present\n",f); flag=1;
+}
+} 
+if(flag==0)
+{ 
+temp=(struct file*)malloc(sizeof(struct file)); 
+strcpy(temp->Name,f);
+D.F[D.count]=temp;
+D.count++;
+}
+else
+{ 
+printf("Duplicate Files Not Allowed!!!\n");
+}
+}
+else if(ch==2){
+printf("Enter the File Name to delete: "); 
+scanf("%s",f); 
+flag=0;
+for(int i=0;i<D.count;i++)
+{ 
+temp=D.F[i]; if(!(strcmp(temp->Name,f)))
+{ 
+flag=1; printf("File Deleted..\n"); in=i; break;
+}
+} 
+if(flag==0)
+{ 
+printf("File Not Found..\n");
+}
+else
+{
+for(in;in<D.count;in++)
+{ temp=D.F[in+1];
+D.F[in]=temp;
+}
+D.count--;
+}
+}
+else if(ch==3){ printf("Displaying Contents\n"); printf("MFD -> "); if(D.count==0){ printf("EMPTY\n");
+}
+for(int i=0;i<D.count;i++){ temp=D.F[i]; printf("%s |",temp->Name);
+}
+printf("\n");
+}
+else if(ch==4){ 
+int in;
+printf("Enter the File Name to Search : ");
+scanf("%s",f); flag=0; for(int i=0;i<D.count;i++)
+{ 
+temp=D.F[i]; 
+if(!(strcmp(temp->Name,f)))
+{ 
+flag=1; 
+printf("File Found..\n"); 
+printf("MFD -> "); 
+printf("%s |",temp->Name);
+in=i; 
+break;
+}
+} if(flag==0)
+{ 
+printf("File Not Found..\n");
+}
+}
+else if(ch==5){ printf("Exiting Now....\n"); break;
+}
+else{ printf("Invalid Choice.... Try Again...\n");
+} printf("\n");
+}
+}
+
+
