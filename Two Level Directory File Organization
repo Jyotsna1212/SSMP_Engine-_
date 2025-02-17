@@ -1,0 +1,183 @@
+#include <stdio.h>
+#include <string.h> 
+#include <stdlib.h>
+struct File { 
+char Name[100];
+};
+struct Dir {
+int count; char Name[100]; struct File Fi[100];
+};
+struct MFD {
+int count; struct Dir Di[100];
+};
+struct MFD M;
+void directory() { 
+int c, flag = 0; char N[100]; struct Dir TempD; struct File TempF; 
+printf("\n\tDirectory Menu\n"); 
+printf("1. Create Directory\n2. Display \n3. Delete Directory\n");
+printf("Enter your choice: "); 
+scanf("%d", &c); 
+if (c==1) { // Create Directory 
+printf("Enter the Name of New Directory: "); 
+scanf("%s", N);
+for (int i = 0; i < M.count; i++)
+{ 
+if (strcmp(N, M.Di[i].Name) == 0)
+{ 
+flag = 1; 
+printf("A Directory with the same name already exists!\n"); 
+break;
+}
+}
+if (flag==0) 
+{ 
+strcpy(TempD.Name, N); 
+TempD.count = 0;
+M.Di[M.count] = TempD; 
+M.count++; 
+printf("Directory created successfully.\n");
+}
+}
+else if (c==2) 
+{ 
+if (M.count == 0)
+{
+printf("NO Directory TO DISPLAY\n");
+} 
+else {
+printf("Directories:\n");
+for (int i = 0; i < M.count; i++) { 
+printf("%s -> ", M.Di[i].Name);
+TempD=M.Di[i];
+for(int j=0;j<TempD.count;j++)
+{ 
+TempF=TempD.Fi[j];
+printf("| %s |",TempF.Name);
+} 
+printf("\n");
+}
+}
+}
+else if (c == 3) { // Delete Directory printf("Enter the Name of Directory to delete: ");
+scanf("%s", N); 
+if(M.count!=0)
+{ 
+printf("Directory Containing files Cannot Be Deleted!\n"); 
+return;
+}
+for (int i = 0; i < M.count; i++) {
+if (strcmp(N, M.Di[i].Name) == 0) { 
+for (int j = i; j < M.count - 1; j++) {
+M.Di[j] = M.Di[j + 1];
+}
+M.count--; printf("Directory deleted successfully.\n"); return;
+}
+}
+printf("Directory not found.\n");
+}
+else { printf("Invalid choice.\n");
+}
+}
+void fileOperations(struct Dir* directory)
+{ 
+int c, flag = 0; char N[100]; 
+printf("\n\tFile Menu\n"); 
+printf("1. Create File\n2. Display Files\n3. Delete File\n4. search File\n");
+printf("Enter your choice: ");
+scanf("%d", &c); if (c == 1) {
+printf("Enter the Name of New File: ");
+scanf("%s", N); if(strchr(N,'.')==NULL){ 
+printf("The File name should contain an extention!\n"); 
+return;
+}
+for (int i = 0; i < directory->count; i++) { 
+if (strcmp(N, directory->Fi[i].Name) == 0) { 
+flag = 1; 
+printf("A file with the same name already exists!\n");
+break;
+}
+}
+if (flag == 0) {
+strcpy(directory->Fi[directory->count].Name, N); 
+directory->count++;
+printf("File created successfully.\n");
+}
+} else if (c == 2) { if (directory->count == 0) { printf("No Files to Display.\n");
+} else {
+printf("Files:\n");
+for (int i = 0; i < directory->count; i++) { 
+printf("%s\n", directory->Fi[i].Name);
+}
+}
+}
+else if (c == 3) { 
+printf("Enter the Name of File to delete: "); 
+scanf("%s", N); 
+for (int i = 0; i < directory->count; i++) { 
+if (strcmp(N, directory->Fi[i].Name) == 0) { 
+for (int j = i; j < directory->count - 1; j++) { 
+directory->Fi[j] = directory->Fi[j + 1];
+}
+directory->count--; printf("File deleted successfully.\n"); return;
+}
+}
+printf("File not found.\n");
+}
+else if( c==4 ){
+printf("Enter the Name of File to Search : ");
+scanf("%s", N); for (int i = 0; i < directory->count; i++) { 
+if (strcmp(N, directory->Fi[i].Name) == 0) {
+printf("File Found.\n");
+printf("MFD -> %s -> %s\n",directory->Name,directory->Fi[i].Name);
+return;
+}
+}
+printf("File not found.\n");
+}
+else { printf("Invalid choice.\n");
+}
+}
+void main() 
+{ 
+int ch;
+M.count = 0;
+printf("Two-Level Directory\n"); while (1) { printf("\n\tMain Menu\n");
+printf("1. Directory Operations\n2. File Operations\n3. Exit\nEnter your choice: "); 
+scanf("%d", &ch); 
+if (ch==1) {
+directory();
+}
+else if (ch==2) {
+if (M.count == 0) { 
+printf("No directories available. Create a directory first.\n");
+}
+else { char dirName[100]; 
+printf("Enter the Directory Name for File Operations: "); 
+scanf("%s", dirName); 
+int found = 0; 
+for (int i = 0; i < M.count; i++) {
+if (strcmp(M.Di[i].Name, dirName) == 0) { 
+fileOperations(&M.Di[i]); 
+found = 1; break;
+}
+}
+if (found==0) {
+printf("Directory not found.\n");
+}
+}
+}
+else if (ch==3) {
+printf("Exiting Now....\n"); 
+break;
+}
+else { printf("Invalid choice.... Try Again...\n");
+}
+}
+}
+
+
+
+
+
+
+
