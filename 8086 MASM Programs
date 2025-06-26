@@ -1,0 +1,292 @@
+*************************// 16 bit addition*******************************
+
+.model small
+.data
+n1 dw 1234h
+n2 dw 4567h
+.code
+mov ax, @data
+mov ds, ax
+
+mov si, offset n1
+mov ax, [si]
+
+mov si, offset n2
+mov bx, [si]
+
+add ax, bx
+
+mov cx, 04h
+mov dx, 0h
+
+L1: mov bx, 0Ah
+    div bx
+    push dx
+    xor dx, dx
+    loop L1
+
+mov cx, 04h
+
+L2: pop dx
+    cmp dx, 09h
+    jgt GT9
+    add dx, 30h
+    jmp Display
+
+GT9: add dx, 37h
+
+Display:
+    mov ah, 02h
+    int 21h
+    loop L2
+
+mov ah, 4ch
+int 21h
+end
+
+
+*****************************//16 bit subtraction ***************************
+
+.model small
+.data
+n1 dw 853Ah
+n2 dw 2111h
+.code
+mov ax, @data
+mov ds, ax
+
+mov si, offset n1
+mov ax, [si]
+
+mov si, offset n2
+mov bx, [si]
+
+sub ax, bx
+
+mov cx, 04h
+mov dx, 0h
+
+L1: mov bx, 0Ah
+    div bx
+    push dx
+    xor dx, dx
+    loop L1
+
+mov cx, 04h
+
+L2: pop dx
+    cmp dx, 09h
+    jgt GT9
+    add dx, 30h
+    jmp Display
+
+GT9: add dx, 37h
+
+Display:
+    mov ah, 02h
+    int 21h
+    loop L2
+
+mov ah, 4ch
+int 21h
+end
+
+***************************//AND**************************************
+
+.model small
+.data
+n1 dw 853Ah
+n2 dw 2111h
+.code
+mov ax, @data
+mov ds, ax
+
+mov si, offset n1
+mov ax, [si]
+
+mov si, offset n2
+mov bx, [si]
+
+and ax, bx
+
+mov cx, 04h
+mov dx, 0h
+
+L1: mov bx, 0Ah
+    div bx
+    push dx
+    xor dx, dx
+    loop L1
+
+mov cx, 04h
+
+L2: pop dx
+    cmp dx, 09h
+    jgt GT9
+    add dx, 30h
+    jmp Display
+
+GT9: add dx, 37h
+
+Display:
+    mov ah, 02h
+    int 21h
+    loop L2
+
+mov ah, 4ch
+int 21h
+end
+
+*****************************//OR***********************************
+
+.model small
+.data
+n1 dw 853Ah
+n2 dw 2111h
+.code
+mov ax, @data
+mov ds, ax
+
+mov si, offset n1
+mov ax, [si]
+
+mov si, offset n2
+mov bx, [si]
+
+or ax, bx
+
+mov cx, 04h
+mov dx, 0h
+
+L1: mov bx, 0Ah
+    div bx
+    push dx
+    xor dx, dx
+    loop L1
+
+mov cx, 04h
+
+L2: pop dx
+    cmp dx, 09h
+    jgt GT9
+    add dx, 30h
+    jmp Display
+
+GT9: add dx, 37h
+
+Display:
+    mov ah, 02h
+    int 21h
+    loop L2
+
+mov ah, 4ch
+int 21h
+end
+
+******************************//XOR********************************
+
+.model small
+.data
+n1 dw 853Ah
+n2 dw 2111h
+.code
+mov ax, @data
+mov ds, ax
+
+mov si, offset n1
+mov ax, [si]
+
+mov si, offset n2
+mov bx, [si]
+
+xor ax, bx
+
+mov cx, 04h
+mov dx, 0h
+
+L1: mov bx, 0Ah
+    div bx
+    push dx
+    xor dx, dx
+    loop L1
+
+mov cx, 04h
+
+L2: pop dx
+    cmp dx, 09h
+    jgt GT9
+    add dx, 30h
+    jmp Display
+
+GT9: add dx, 37h
+
+Display:
+    mov ah, 02h
+    int 21h
+    loop L2
+
+mov ah, 4ch
+int 21h
+end
+
+*************************//NOT************************************
+
+.model small
+.data
+.code
+mov ax, @data
+mov ds, ax
+
+mov ax, 853Ah
+not ax
+
+mov cx, 04h
+mov dx, 0h
+
+L1: mov bx, 10h
+    div bx
+    push dx
+    xor dx, dx
+    loop L1
+
+mov cx, 04h
+
+L2: pop dx
+    cmp dx, 0Ah
+    jge GT9
+    add dx, 30h
+    jmp Display
+
+GT9: add dx, 37h
+
+Display:
+    mov ah, 02h
+    int 21h
+    loop L2
+
+mov ah, 4ch
+int 21h
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
