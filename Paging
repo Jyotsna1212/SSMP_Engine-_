@@ -1,0 +1,139 @@
+#include<stdio.h>
+
+struct Process {
+    int id;
+    int size;
+    int frames;
+    int internal_frag;
+    int F[100];
+};
+
+void main() {
+    struct Process P[100];
+    int total_mem, Frame_size, Frame_Num, pc = 0, id, size, ch;
+    int req_frames, used_frames = 0;
+
+    printf("JYOTSNA MARIAM JOJI\n\n");
+    printf("Enter the Total Memory (in KB) : ");
+    scanf("%d", &total_mem);
+    printf("Enter the Frame Memory (in KB) : ");
+    scanf("%d", &Frame_size);
+
+    Frame_Num = total_mem / Frame_size;
+    int Frames[Frame_Num]; // frames as array
+    for (int i = 0; i < Frame_Num; i++) {
+        Frames[i] = -1; // initialise all frames as empty
+    }
+
+    printf("Total No. of Frames Available : %d\n", Frame_Num);
+
+    while (1) {
+        printf("\nMain Menu\n1. Insert\n2. Delete\n3. Display PCB\n4. Exit\n");
+        printf("Enter your choice : ");
+        scanf("%d", &ch);
+
+        if (ch == 1) {
+            // insertion
+            printf("Enter the Process ID = P");
+            scanf("%d", &id);
+            printf("Enter the process size : ");
+            scanf("%d", &size);
+
+            req_frames = size / Frame_size;
+            if (size % Frame_size != 0) {
+                req_frames++;
+            }
+
+            if (used_frames + req_frames > Frame_Num) {
+                printf("Memory Full! Cannot Allocate\n");
+            } else {
+                used_frames += req_frames;
+
+                printf("\nProcess Allocated\n");
+                P[pc].id = id;
+                P[pc].size = size;
+                P[pc].internal_frag = 0;
+                P[pc].frames = req_frames;
+
+                int i = 0, in;
+                while (i < req_frames) {
+                    in = rand() % Frame_Num;
+                    if (Frames[in] == -1) {
+                        Frames[in] = 1; // show Frame as used
+                        P[pc].F[i] = in;
+
+                        if (size >= Frame_size) {
+                            size -= Frame_size;
+                            P[pc].internal_frag += 0;
+                        } else {
+                            P[pc].internal_frag += (Frame_size - size);
+                            size = 0;
+                        }
+                        i++;
+                    }
+                }
+              
+        printf("Internal Fragmentation of Process : %d\n", P[pc].internal_frag);
+        pc++;
+    }
+    else if (ch == 3) { // display
+        printf("\n\tProcess Control Block\n");
+        printf("Process ID\tSize\tFrames\n");
+        for (int i = 0; i < pc; i++) {
+            printf("\tP%d\t%d\t", P[i].id, P[i].size);
+            for (int j = 0; j < P[i].frames; j++) {
+                printf("%d ", P[i].F[j]);
+            }
+            printf("\n");
+        }
+
+        int t = 0;
+        for (int j = 0; j < pc; j++) {
+            t += P[j].internal_frag;
+        }
+        printf("\nTotal Internal Fragmentation : %d\n", t);
+    }
+
+    else if (ch == 2) { // delete
+        int select = -1;
+        printf("Enter the process id to be Deleted : P");
+        scanf("%d", &id);
+        for (int i = 0; i < pc; i++) {
+            if (P[i].id == id) {
+                select = i;
+                break;
+            }
+        }
+
+        if (select == -1) {
+            printf("Process Does Not Exist\n");
+            continue;
+        }
+
+        for (int i = 0; i < P[select].frames; i++) {
+            // release frames
+            int in = P[select].F[i];
+            Frames[in] = -1;
+        }
+
+        for (int i = select; i < pc - 1; i++) {
+            P[i] = P[i + 1];
+        }
+
+        pc--;
+        printf("Process Deleted\n");
+    }
+
+    else if (ch == 4) {
+        printf("Exiting...\n");
+        break;
+    }
+
+    else {
+        printf("Invalid Input! Try Again....\n");
+    }
+
+    printf("\n");
+}
+}
+
