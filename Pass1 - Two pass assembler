@@ -1,0 +1,183 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <ctype.h>
+
+char h[5];
+
+int hex_to_int(const char s[]);
+void int_to_hex(int num, char hex[]);
+
+int main(void) {
+    FILE *in_file, *optab_file, *intermediate_file, *symtab_file, *pgmsize_file;
+
+    in_file = fopen("Input_program.txt", "r");
+    optab_file = fopen("OPTAB.txt", "r");
+    intermediate_file = fopen("Intermediate.txt", "w");
+    /* open symtab as w+ so it is created if missing and readable/writable */
+    symtab_file = fopen("SYMTAB.txt", "w+");
+    pgmsize_file = fopen("Program_size.txt", "w");
+
+    if (!in_file || !optab_file || !intermediate_file || !symtab_file || !pgmsize_file) {
+        fprintf(stderr, "Error opening one of the files.\n");
+        return 1;
+    }
+
+    char str1[100], str2[100], str3[100];
+    char s1[100], s2[100], start[100], temps[100];
+    int locctr = 0, error = 0, prev = 0, s;
+    if (fscanf(in_file, "%s %s %s", str1, str2, str3) != 3) {
+        fprintf(stderr, "Input file format error or empty file.\n");
+        return 1;
+    }
+
+    strcpy(start, str3);
+
+    if (strcmp(str3, "--") == 0) {
+        fprintf(stderr, "Error! No Start operand provided!\n");
+        return 1;
+    }
+
+    if (strcmp(str2, "START") != 0) {
+        fprintf(stderr, "No START directive found on first line!\n");
+        return 1;
+    }
+
+    locctr = hex_to_int(str3);
+    s = locctr;
+
+    fprintf(intermediate_file, "    %s %s %s\n", str1, str2, str3);
+    prev = locctr;
+
+    /* Pass 1 loop: read until EOF or END */
+    while (fscanf(in_file, "%s %s %s", str1, str2, str3) == 3) {
+        /* If the label is END (some formats put END in label column) */
+        if (strcmp(str1, "END") == 0) {
+            printf("Pass 1 Completed!\n");
+            fprintf(intermediate_file, "%s %s\n", str1, start);
+            break;
+        }
+
+        /* If label exists (not '-') then add to SYMTAB after checking duplicates */
+        if (strcmp(str1, "-") != 0) {
+            /* Check duplicate labels in SYMTAB */
+            rewind(symtab_file);
+            int duplicate = 0;
+            while (fscanf(symtab_file, "%s %s", s1, s2) != EOF) {
+                if (strcmp(s1, str1) == 0) {
+                    fprintf(stderr, "Error! Label '%s' already exists!\n", str1);
+                    return 1;
+                }
+            }
+            /* write label and current locctr to symtab */
+            int_to_hex(locctr, h);
+            fprintf(symtab_file, "%s %s\n", str1, h);
+            fflush(symtab_file);
+        }
+
+        /* Opcode handling */
+        int flag = 0;
+        rewind(optab_file);
+        while (fscanf(optab_file, "%s %s", s1, s2) != EOF) {
+            /* s1: opcode in OPTAB, s2: opcode machine code (or similar) */
+            if (strcmp(s1, str2) == 0) {
+                /* normal 3-byte instruction */
+                flag = 1;
+                locctr += 3;
+                break;
+            } else if (str2[0] == '+') {
+                /* extended format: +<opcode> -> 4 bytes */
+                /* copy opcode without '+' into temps and null-terminate */
+                size_t len = strlen(str2);
+                if (len > 1) {
+                    memcpy(temps, str2 + 1, len - 1);
+                    temps[len - 1] = '\0';
+                    if (strcmp(s1, temps) == 0) {
+                        flag = 1;
+                        locctr += 4;
+                        break;
+                    }
+                }
+            }
+        } /* end OPTAB scan */
+
+        /* If opcode not found in OPTAB, check directives */
+        if (flag == 0) {
+            if (strcmp(str2, "WORD") == 0) {
+                locctr += 3;
+            } else if (strcmp(str2, "RESW") == 0) {
+                locctr += 3 * atoi(str3);
+            } else if (strcmp(str2, "RESB") == 0) {
+                locctr += atoi(str3);
+            } else if (strcmp(str2, "BYTE") == 0) {
+                /* simplistic handling: expects C'...' or X'...' style operand in str3 */
+                if (str3[0] == 'C' && str3[1] == '\'' && str3[strlen(str3)-1] == '\'') {
+                    /* number of characters inside quotes */
+                    locctr += (int)(strlen(str3) - 3);
+                } else if (str3[0] == 'X' && str3[1] == '\'' && str3[strlen(str3)-1] == '\'') {
+                    /* each pair of hex digits -> 1 byte */
+                    int hexchars = (int)(strlen(str3) - 3);
+                    locctr += (hexchars + 1) / 2; /* ceil */
+                } else {
+                    /* fallback: use length-3 like your original code */
+                    locctr += (int)(strlen(str3) - 3);
+                }
+            } else {
+                fprintf(stderr, "Error: Unknown OPCODE '%s'\n", str2);
+                return 1;
+            }
+        }
+
+        /* write intermediate record: address label opcode operand */
+        int_to_hex(prev, h);
+        prev = locctr;
+        fprintf(intermediate_file, "%s %s %s %s\n", h, str1, str2, str3);
+    } /* end while */
+
+    fprintf(pgmsize_file, "%d\n", locctr - s);
+
+    /* close files */
+    fclose(in_file);
+    fclose(optab_file);
+    fclose(intermediate_file);
+    fclose(symtab_file);
+    fclose(pgmsize_file);
+
+    return 0;
+}
+
+/* integer hex string to int (e.g., "1A3F") */
+int hex_to_int(const char s[]) {
+    int value = 0;
+    int multiplier = 1;
+    int len = (int)strlen(s);
+    for (int i = len - 1; i >= 0; --i) {
+        char c = toupper((unsigned char)s[i]);
+        int digit = 0;
+        if (c >= '0' && c <= '9') digit = c - '0';
+        else if (c >= 'A' && c <= 'F') digit = c - 'A' + 10;
+        else {
+            /* ignore or treat non-hex as zero */
+            digit = 0;
+        }
+        value += digit * multiplier;
+        multiplier *= 16;
+    }
+    return value;
+}
+
+/* convert integer (assumed non-negative) to 4-digit hex string (upper-case) */
+void int_to_hex(int num, char hex[]) {
+    for (int j = 0; j < 4; j++) hex[j] = '0';
+    hex[4] = '\0';
+
+    int i = 3;
+    while (num != 0 && i >= 0) {
+        int remainder = num % 16;
+        if (remainder < 10) hex[i] = (char)(remainder + '0');
+        else hex[i] = (char)((remainder - 10) + 'A');
+        num /= 16;
+        i--;
+    }
+}
