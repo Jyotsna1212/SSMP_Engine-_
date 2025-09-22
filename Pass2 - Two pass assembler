@@ -1,0 +1,325 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+/*
+  Pass-2 assembler: reads Intermediate.txt, OPTAB.txt, SYMTAB.txt and Program_size.txt
+  Produces Object_Pgm.txt with H, T, E records (text output, human-readable).
+*/
+
+int hexstr_to_int(const char *s) {
+    int v = 0;
+    for (size_t i = 0; i < strlen(s); ++i) {
+        char c = toupper((unsigned char)s[i]);
+        int d = 0;
+        if (c >= '0' && c <= '9') d = c - '0';
+        else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+        else break;
+        v = v * 16 + d;
+    }
+    return v;
+}
+
+void pad_left(char *out, const char *in, int width) {
+    int len = (int)strlen(in);
+    int pad = width - len;
+    for (int i = 0; i < pad; ++i) out[i] = '0';
+    strcpy(out + (pad > 0 ? pad : 0), in);
+    out[width] = '\0';
+}
+
+int main(void) {
+    FILE *optab_file = fopen("OPTAB.txt", "r");
+    FILE *intermediate_file = fopen("Intermediate.txt", "r");
+    FILE *symtab_file = fopen("SYMTAB.txt", "r");
+    FILE *pgmsize_file = fopen("Program_size.txt", "r");
+    FILE *object_pgm = fopen("Object_Pgm.txt", "w");
+
+    if (!optab_file || !intermediate_file || !symtab_file || !pgmsize_file || !object_pgm) {
+        fprintf(stderr, "Error: could not open one or more input/output files.\n");
+        return 1;
+    }
+
+    char prog_name[7] = {0};   /* 6 chars program name */
+    char start_addr_str[10] = {0}; /* start hex string */
+    int prog_size = 0;
+
+    /* Read the first line of Intermediate (program header line).
+       The first line usually contains: LABEL OPCODE OPERAND  (e.g., COPY START 1000)
+       We'll read three tokens; if format differs user needs to adjust.
+    */
+    char tok1[128], tok2[128], tok3[128];
+    if (fscanf(intermediate_file, "%127s %127s %127s", tok1, tok2, tok3) != 3) {
+        fprintf(stderr, "Error: Intermediate.txt - first line malformed.\n");
+        return 1;
+    }
+
+    /* Program name is token1 (label). Truncate/pad to 6 */
+    strncpy(prog_name, tok1, 6);
+    prog_name[6] = '\0';
+    strcpy(start_addr_str, tok3);
+
+    /* Read program size */
+    if (fscanf(pgmsize_file, "%d", &prog_size) != 1) {
+        fprintf(stderr, "Error: Program_size.txt malformed.\n");
+        return 1;
+    }
+
+    /* Prepare Header record: H<name(6)><start(6)><length(6)> */
+    char header[64] = {0}, tmp[32];
+    strcpy(header, "H");
+    char name_field[7] = "      ";
+    /* left-justified name in 6 chars per standard (we'll pad with spaces) */
+    for (int i = 0; i < 6; ++i) {
+        name_field[i] = (i < (int)strlen(prog_name) ? prog_name[i] : ' ');
+    }
+    name_field[6] = '\0';
+    strcat(header, name_field);
+
+    sprintf(tmp, "%X", hexstr_to_int(start_addr_str)); /* ensure hex normalized */
+    char start_field[7];
+    {
+        char tmp2[32];
+        sprintf(tmp2, "%X", hexstr_to_int(start_addr_str));
+        pad_left(start_field, tmp2, 6);
+    }
+    strcat(header, start_field);
+
+    char length_field[7];
+    {
+        char tmp2[32];
+        sprintf(tmp2, "%X", prog_size);
+        pad_left(length_field, tmp2, 6);
+    }
+    strcat(header, length_field);
+
+    fprintf(object_pgm, "%s\n", header);
+
+    /* Now process intermediate lines to form T records */
+    /* We expect intermediate to have (addr label opcode operand) for most lines.
+       Some lines (initial header) didn't have addr; we already consumed it.
+    */
+    int addr;
+    char label[128], opcode[128], operand[128];
+
+    /* State for current Text record */
+    char textrec[1024];     /* will hold "T" + start(6) + length(2) + objectcodes */
+    char text_start[7];     /* starting address of this T rec */
+    char text_len_hex[3];
+    char object_codes[1024]; /* aggregated hex object codes for T record (no prefix) */
+    object_codes[0] = '\0';
+    int text_start_addr = -1; /* numeric */
+    int text_byte_count = 0;   /* bytes in object_codes */
+
+    /* Helper to flush current T record to file */
+    auto flush_text_rec = [&](void) {
+        if (text_byte_count == 0) return;
+        /* Build T record: 'T' + start(6) + length(2) + object_codes */
+        char out[2048];
+        strcpy(out, "T");
+        strcat(out, text_start); /* already 6-chars */
+        sprintf(text_len_hex, "%02X", text_byte_count);
+        strcat(out, text_len_hex);
+        strcat(out, object_codes);
+        fprintf(object_pgm, "%s\n", out);
+        /* reset */
+        object_codes[0] = '\0';
+        text_byte_count = 0;
+        text_start_addr = -1;
+        text_start[0] = '\0';
+    };
+
+    /* Read next line of intermediate. Most lines were written by pass1 as:
+       <address> <label> <opcode> <operand>
+       The header line we already consumed (COPY START 1000). Now read next lines.
+    */
+    while (fscanf(intermediate_file, "%x %127s %127s %127s", &addr, label, opcode, operand) == 4) {
+        /* If this is an END line (label or opcode may be END), stop */
+        if (strcmp(label, "END") == 0 || strcmp(opcode, "END") == 0 ||
+            strcmp(operand, "END") == 0) {
+            break;
+        }
+
+        /* If directive RESW/RESB: must flush current text record and skip */
+        if (strcmp(opcode, "RESW") == 0 || strcmp(opcode, "RESB") == 0) {
+            flush_text_rec();
+            continue;
+        }
+
+        /* Object code for this line will be built in 'obj' */
+        char obj[64] = {0};
+
+        /* Handle BYTE and WORD separately */
+        if (strcmp(opcode, "BYTE") == 0) {
+            /* operand examples: C'EOF'  or X'F1' */
+            if (operand[0] == 'C' && operand[1] == '\'') {
+                size_t len = strlen(operand);
+                /* characters inside quotes start at idx 2 up to len-2 */
+                for (size_t i = 2; i + 1 < len; ++i) {
+                    unsigned char ch = (unsigned char) operand[i];
+                    char bytehex[3];
+                    sprintf(bytehex, "%02X", ch);
+                    strcat(obj, bytehex);
+                }
+            } else if (operand[0] == 'X' && operand[1] == '\'') {
+                /* hex string inside quotes */
+                size_t len = strlen(operand);
+                for (size_t i = 2; i + 1 < len; ++i) {
+                    char ch = operand[i];
+                    /* append as-is (but ensure uppercase) */
+                    char hexpair[3] = { (char)toupper((unsigned char)ch), '\0', };
+                    size_t cur = strlen(obj);
+                    obj[cur] = (char)toupper((unsigned char)operand[i]);
+                    obj[cur+1] = '\0'; /* We'll assume operand is valid pairs; later it's concatenated */
+                }
+                /* Note: X'...' expects even number of hex digits — our intermediate pass1 wrote bytes correctly */
+                /* For safety, we leave obj as sequence of hex chars as read (assumes correct). */
+            } else {
+                /* fallback: treat string as characters (strip surrounding quotes if present) */
+                size_t len = strlen(operand);
+                for (size_t i = 0; i < len; ++i) {
+                    unsigned char ch = (unsigned char) operand[i];
+                    char bytehex[3];
+                    sprintf(bytehex, "%02X", ch);
+                    strcat(obj, bytehex);
+                }
+            }
+        } else if (strcmp(opcode, "WORD") == 0) {
+            /* 3-byte integer (decimal) */
+            int val = atoi(operand);
+            char tmpw[8];
+            sprintf(tmpw, "%06X", val & 0xFFFFFF);
+            strcat(obj, tmpw);
+        } else {
+            /* Regular opcode: lookup opcode machine code in OPTAB */
+            rewind(optab_file);
+            char optname[128], optcode[128];
+            int found_op = 0;
+            int extended = 0;
+            char searchop[128];
+
+            if (opcode[0] == '+') {
+                extended = 1;
+                strcpy(searchop, opcode + 1);
+            } else {
+                extended = 0;
+                strcpy(searchop, opcode);
+            }
+
+            while (fscanf(optab_file, "%127s %127s", optname, optcode) == 2) {
+                if (strcmp(optname, searchop) == 0) {
+                    found_op = 1;
+                    break;
+                }
+            }
+            if (!found_op) {
+                fprintf(stderr, "Error: opcode '%s' not found in OPTAB\n", searchop);
+                fclose(optab_file);
+                fclose(intermediate_file);
+                fclose(symtab_file);
+                fclose(pgmsize_file);
+                fclose(object_pgm);
+                return 1;
+            }
+
+            /* Now find operand address in SYMTAB (unless operand is immediate/constant - simple case) */
+            char symname[128], symaddr[128];
+            char operand_addr[7] = "000000";
+
+            if (strlen(operand) > 0 && operand[0] != '-') {
+                rewind(symtab_file);
+                int found_sym = 0;
+                while (fscanf(symtab_file, "%127s %127s", symname, symaddr) == 2) {
+                    if (strcmp(symname, operand) == 0) {
+                        pad_left(operand_addr, symaddr, 6);
+                        found_sym = 1;
+                        break;
+                    }
+                }
+                if (!found_sym) {
+                    /* If operand not in SYMTAB, assume 000000 (or error) */
+                    /* You might want to treat numeric operands differently. */
+                    strcpy(operand_addr, "000000");
+                }
+            } else {
+                strcpy(operand_addr, "000000");
+            }
+
+            /* Combine opcode machine code + operand address's low 3 bytes (or 4 bytes for extended) */
+            /* optcode could be like "00" (1 byte) or "1C" etc. We assume OPTAB contains 2-hex-digit opcodes. */
+            if (!extended) {
+                /* 3-byte format: opcode (1 byte) + 3-byte address -> total 6 hex digits */
+                /* optcode is 2 hex digits: append 6 hex digits = optcode + last 6 hex digits of operand_addr */
+                char codebuf[16];
+                /* operand_addr is 6 chars, use them */
+                sprintf(codebuf, "%s%s", optcode, operand_addr + (strlen(operand_addr) - 4)); 
+                /* but standard: opcode(2) + address(4) for format 3? Simpler approach: treat operand_addr right-aligned 4 hex digits */
+                /* To keep compatibility with your pass1 (which wrote full 6-char addresses in SYMTAB), we'll append the low 4 hex digits */
+                /* Let's craft a 6-hex-digit result: opcode(2) + addr(low 4) */
+                char low4[5];
+                int lenaddr = (int)strlen(operand_addr);
+                if (lenaddr >= 4) strcpy(low4, operand_addr + lenaddr - 4);
+                else pad_left(low4, operand_addr, 4);
+                sprintf(obj, "%s%s", optcode, low4);
+            } else {
+                /* extended format (+): 4 bytes -> opcode + 5-hex-digit address? Commonly opcode(2) + 5-digit disp -> but here we produce opcode(2) + full addr(6) trimmed to 5?
+                   We'll simply output opcode + full 6-hex addr, which yields 8 hex digits (4 bytes).
+                */
+                char tmp8[16];
+                sprintf(tmp8, "%s%s", optcode, operand_addr);
+                strcpy(obj, tmp8);
+            }
+        } /* end opcode handling */
+
+        /* Now we have 'obj' string of hex digits for this line (may be empty if RES*). Append to current text record.
+           T-records should be a max of 30 bytes (60 hex chars). We'll flush when adding this would exceed 30 bytes.
+        */
+        int obj_bytes = (int)(strlen(obj) / 2); /* each two hex chars = 1 byte */
+        if (text_byte_count == 0) {
+            /* start new T record at this line's address */
+            text_start_addr = addr;
+            char staddr_hex[7];
+            sprintf(staddr_hex, "%X", addr);
+            pad_left(text_start, staddr_hex, 6);
+        }
+
+        /* If this object would overflow 30 bytes, flush existing record first */
+        if (text_byte_count + obj_bytes > 30) {
+            flush_text_rec();
+            /* start new record for this obj */
+            text_start_addr = addr;
+            char staddr_hex[7];
+            sprintf(staddr_hex, "%X", addr);
+            pad_left(text_start, staddr_hex, 6);
+        }
+
+        /* Append obj to object_codes */
+        strcat(object_codes, obj);
+        text_byte_count += obj_bytes;
+    } /* end while reading intermediate */
+
+    /* Flush any remaining T record */
+    flush_text_rec();
+
+    /* Write End record: E<start(6)> */
+    char endrec[32];
+    strcpy(endrec, "E");
+    char start_field2[7];
+    {
+        char tmp2[32];
+        sprintf(tmp2, "%X", hexstr_to_int(start_addr_str));
+        pad_left(start_field2, tmp2, 6);
+    }
+    strcat(endrec, start_field2);
+    fprintf(object_pgm, "%s\n", endrec);
+
+    fclose(optab_file);
+    fclose(intermediate_file);
+    fclose(symtab_file);
+    fclose(pgmsize_file);
+    fclose(object_pgm);
+
+    printf("Pass 2 Complete!\n");
+    return 0;
+}
